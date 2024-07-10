@@ -20,33 +20,36 @@ class MyApp extends StatelessWidget {
   }
 }
 
-extension OptionalInfixAddition<T extends num> on T? {
-  T? operator +(T? other) {
-    final shadow = this;
-    if (shadow != null) {
-      return shadow + (other ?? 0) as T;
-    } else {
-      return null;
-    }
-  }
+typedef WeatherEmoji = String;
+
+enum City { Stockholm, Paris, Tokyo }
+
+Future<WeatherEmoji> getWeather(City city) {
+  return Future.delayed(
+    const Duration(seconds: 1),
+    () =>
+        {
+          City.Paris: 'sunny',
+          City.Stockholm: 'rainy',
+          City.Tokyo: 'Windy'
+        }[city] ??
+        'Hottest',
+  );
 }
 
-class Counter extends StateNotifier<int?> {
-  Counter() : super(null);
+final currentCityProvider = StateProvider<City?>(
+  (ref) => null,
+);
 
-  void increment() {
-    if (state == null) {
-      state = 1;
+final weatherProvider = FutureProvider<WeatherEmoji>(
+  (ref) {
+    final city = ref.watch(currentCityProvider);
+    if (city != null) {
+      return getWeather(city);
     } else {
-      state = state + 1;
+      return 'Unknown';
     }
-  }
-
-  int? get value => state;
-}
-
-final counterProvider = StateNotifierProvider<Counter, int?>(
-  (ref) => Counter(),
+  },
 );
 
 class HomePage extends ConsumerWidget {
@@ -54,43 +57,39 @@ class HomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentWeather = ref.watch(weatherProvider);
     return Scaffold(
-      appBar: AppBar(title: Consumer(
-        builder: (context, ref, child) {
-          final count = ref.watch(counterProvider);
-          return Text(count == null ? '0' : count.toString());
-        },
-      )),
+      appBar: AppBar(
+        title: const Text('Weather'),
+      ),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextButton(
-              onPressed: () {
-                ref.read(counterProvider.notifier).increment();
+          currentWeather.when(
+            data: (data) => Text(data),
+            error: (error, stackTrace) => Text('Error'),
+            loading: () => Padding(
+              padding: EdgeInsets.all(10),
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: City.values.length,
+              itemBuilder: (context, index) {
+                final city = City.values[index];
+                final isSelected = city == ref.watch(currentCityProvider);
+                return ListTile(
+                  title: Text(city.toString()),
+                  trailing: isSelected ? Icon(Icons.check) : null,
+                  onTap: () {
+                    ref.read(currentCityProvider.notifier).state = city;
+                  },
+                );
               },
-              child: Text('press'))
+            ),
+          )
         ],
       ),
     );
   }
 }
-// final currentDate = Provider<DateTime>(
-//   (ref) => DateTime.now(),
-// );
-
-// class HomePage extends ConsumerWidget {
-//   const HomePage({super.key});
-
-//   @override
-//   Widget build(BuildContext context, WidgetRef ref) {
-//     final date = ref.watch(currentDate);
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Home Page'),
-//       ),
-//       body: Center(
-//         child: Text(date.toIso8601String()),
-//       ),
-//     );
-//   }
-// }
